@@ -1,77 +1,71 @@
-"""Define an object to manage fetching Renson Healthbox3 data."""
-
+"""DataUpdateCoordinator for healthbox."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import timedelta
-
-from pyhealthbox3.healthbox3 import Healthbox3
-from pyhealthbox3.models import Healthbox3DataObject
+from pyhealthbox3.healthbox3 import (
+    Healthbox3,
+    Healthbox3ApiClientAuthenticationError,
+    Healthbox3ApiClientError,
+)
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import device_registry as dr
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import DOMAIN, LOGGER
-
-type RensonHealthboxConfigEntry = ConfigEntry[RensonHealthboxCoordinator]
+from .const import DOMAIN, LOGGER, SCAN_INTERVAL
 
 
-@dataclass
-class RensonHealthboxData:
-    """Class for Renson Healthbox data."""
+# https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
+class HealthboxDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching data from the API."""
 
-    healthbox_data: Healthbox3DataObject
+    config_entry: ConfigEntry
 
-
-class RensonHealthboxCoordinator(DataUpdateCoordinator[RensonHealthboxData]):
-    """Class to manage fetching RensonHealthbox data."""
-
-    config_entry: RensonHealthboxConfigEntry
-    _current_version: str
+    api: Healthbox3
 
     def __init__(
-        self,
-        hass: HomeAssistant,
-        config_entry: RensonHealthboxConfigEntry,
-        client: Healthbox3,
+        self, hass: HomeAssistant, entry: ConfigEntry, api: Healthbox3
     ) -> None:
-        """Initialize coordinator."""
+        """Initialize."""
+
+        self.hass = hass
+        self.config_entry = entry
+        self.host: str = entry.data[CONF_HOST]
+        self.api: Healthbox3 = api
+
         super().__init__(
-            hass,
+            hass=hass,
             logger=LOGGER,
-            config_entry=config_entry,
-            name=f"Renson Healthbox {client.host}",
-            update_interval=timedelta(minutes=1),
+            name=f"{DOMAIN} - {self.host}",
+            update_interval=SCAN_INTERVAL,
         )
-        self.client = client
-        assert self.config_entry.unique_id
-        self.serial_number = self.config_entry.unique_id
 
-    async def _async_setup(self) -> None:
-        """Set up the coordinator."""
-        await self.client.async_get_data()
-        self._current_version = self.client.firmware_version
+    async def start_room_boost(
+        self, room_id: int, boost_level: int, boost_timeout: int
+    ):
+        """Start Boosting HB Room."""
+        await self.api.async_start_room_boost(
+            room_id=room_id, boost_level=boost_level, boost_timeout=boost_timeout
+        )
 
-    async def _async_update_data(self) -> RensonHealthboxData:
+    async def stop_room_boost(self, room_id: int):
+        """Stop Boosting HB Room."""
+        await self.api.async_stop_room_boost(room_id=room_id)
+
+    async def _async_update_data(self):
+        """Update data via library."""
         try:
-            data = await self.client.async_get_data()
-        except Exception as error:
-            raise UpdateFailed(
-                translation_domain=DOMAIN,
-                translation_key="update_error",
-                translation_placeholders={"error": str(error)},
-            ) from error
-        if self.client.firmware_version != self._current_version:
-            device_registry = dr.async_get(self.hass)
-            device_entry = device_registry.async_get_device(
-                identifiers={(DOMAIN, self.serial_number)}
-            )
-            assert device_entry
-            device_registry.async_update_device(
-                device_entry.id,
-                sw_version=self.client.firmware_version,
-            )
-            self._current_version = self.client.firmware_version
-        return RensonHealthboxData(data)
+            await self.api.async_get_data()
+            # hb_data: HealthboxDataObject = HealthboxDataObject(data=data)
+            # for room in hb_data.rooms:
+            #     boost_data = await self.api.async_get_room_boost_data(room.room_id)
+
+            #     room.boost = HealthboxRoomBoost(
+            #         boost_data["level"], boost_data["enable"], boost_data["remaining"]
+            #     )
+
+        except Healthbox3ApiClientAuthenticationError as exception:
+            raise ConfigEntryAuthFailed(exception) from exception
+        except Healthbox3ApiClientError as exception:
+            raise UpdateFailed(exception) from exception

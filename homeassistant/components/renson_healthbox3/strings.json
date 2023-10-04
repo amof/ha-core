@@ -1,98 +1,39 @@
 {
   "config": {
+    "flow_title": "Healthbox Configuration",
     "step": {
       "user": {
-        "title": "Renson HealthBox 3",
-        "description": "Connect your Renson Healthbox 3 with Home Assistant.",
         "data": {
           "host": "[%key:common::config_flow::data::host%]",
-          "api_key": "[%key:common::config_flow::data::api_key%]"
-        },
-        "data_description": {
-          "host": "The Host or IP address of the Renson Healthbox 3",
-          "api_key": "The API key for the Renson Healthbox 3"
-        }
-      },
-      "reconfigure": {
-        "title": "Renson HealthBox 3 Configuration",
-        "description": "Update your host or API key.",
-        "data": {
-          "host": "[%key:common::config_flow::data::host%]",
-          "api_key": "[%key:common::config_flow::data::api_key%]"
-        },
-        "data_description": {
-          "host": "[%key:component::renson_healthbox3::config::step::user::data_description::host%]",
-          "api_key": "[%key:component::renson_healthbox3::config::step::user::data_description::api_key%]"
+          "api_key": "[%key:common::config_flow::data::password%]"
         }
       }
     },
     "error": {
       "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]",
-      "auth": "[%key:common::config_flow::error::invalid_auth%]"
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
+    },
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
     }
   },
-  "entity": {
-    "sensor": {
-      "global_aqi": {
-        "name": "Global Air Quality Index"
-      },
-      "error_count": {
-        "name": "Error Count"
-      },
-      "wifi_status": {
-        "name": "Wi-Fi Status"
-      },
-      "wifi_internet_connection": {
-        "name": "Wi-Fi Internet Connection"
-      },
-      "wifi_ssid": {
-        "name": "Wi-Fi SSID"
-      },
-      "fan_voltage": {
-        "name": "Fan Voltage"
-      },
-      "fan_pressure": {
-        "name": "Fan Pressure"
-      },
-      "fan_flow": {
-        "name": "Fan Flow"
-      },
-      "fan_power": {
-        "name": "Fan Power"
-      },
-      "fan_rpm": {
-        "name": "Fan RPM"
-      },
-      "room_temperature": {
-        "name": "Room Temperature"
-      },
-      "room_humidity": {
-        "name": "Room Humidity"
-      },
-      "room_co2": {
-        "name": "Room CO2 Concentration"
-      },
-      "room_aqi": {
-        "name": "Room Air Quality Index"
-      },
-      "room_voc": {
-        "name": "Room Volatile Organic Compounds"
+  "options": {
+    "flow_title": "Healthbox Configuration",
+    "step": {
+      "init": {
+        "data": {
+          "api_key": "[%key:common::config_flow::data::password%]"
+        }
       }
-    }
-  },
-  "exceptions": {
-    "authentication_error": {
-      "message": "An error occurred while authenticating with the Renson Healthbox device: {error}"
     },
-    "communication_error": {
-      "message": "An error occurred while communicating with the Renson Healthbox device: {error}"
+    "error": {
+      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
+      "invalid_auth": "[%key:common::config_flow::error::invalid_auth%]",
+      "unknown": "[%key:common::config_flow::error::unknown%]"
     },
-    "unknown_error": {
-      "message": "An unknown error occurred while communicating with the Renson Healthbox device: {error}"
-    },
-    "update_error": {
-      "message": "An error occurred while communicating with the Renson Healthbox device: {error}"
+    "abort": {
+      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]"
     }
   }
 }

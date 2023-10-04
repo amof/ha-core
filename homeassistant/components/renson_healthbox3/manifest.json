@@ -1,10 +1,8 @@
 {
-  "domain": "renson_healthbox3",
-  "name": "Renson healthbox",
-  "codeowners": ["@amof", "@jimmyd-be", "@rmassch"],
+  "domain": "renson",
+  "name": "Renson Healthbox",
+  "codeowners": ["@rmassch", "@jimmyd-be"],
   "config_flow": true,
-  "documentation": "https://www.home-assistant.io/integrations/renson",
   "iot_class": "local_polling",
-  "quality_scale": "bronze",
-  "requirements": ["pyhealthbox3==0.0.22"]
+  "requirements": ["pyhealthbox3==0.0.20"]
 }
