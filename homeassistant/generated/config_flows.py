@@ -527,6 +527,7 @@ FLOWS = {
         "remote_calendar",
         "renault",
         "renson",
+        "renson_healthbox3",
         "reolink",
         "rfxtrx",
         "rhasspy",
