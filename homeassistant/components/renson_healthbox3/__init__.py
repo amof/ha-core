@@ -1,4 +1,5 @@
 """The Renson integration."""
+
 from __future__ import annotations
 
 from pyhealthbox3.healthbox3 import Healthbox3
@@ -29,6 +30,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         api_key=api_key,
         session=async_get_clientsession(hass),
     )
+
+    entry.runtime_data = healthBoxApi
     if api_key:
         await healthBoxApi.async_enable_advanced_api_features()
 
