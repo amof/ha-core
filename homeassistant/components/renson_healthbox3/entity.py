@@ -1,24 +1,32 @@
 """Entity class for Renson ventilation unit."""
+
 from __future__ import annotations
 
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, MANUFACTURER
 from .coordinator import RensonCoordinator
 
 
-class RensonEntity(CoordinatorEntity[RensonCoordinator]):
-    """Renson entity."""
+class RensonHealthboxSensor(CoordinatorEntity[RensonCoordinator]):
+    """Base class for a Renson Healthbox sensor."""
 
     def __init__(self, name: str, coordinator: RensonCoordinator) -> None:
-        """Initialize the Renson entity."""
+        """Initialize the sensor."""
         super().__init__(coordinator)
 
         self._attr_device_info = DeviceInfo(
-            name="Healthbox3",
-            identifiers={(DOMAIN, coordinator.api.serial)},
-            manufacturer="Renson",
+            name=f"{coordinator.api.serial}",
+            identifiers={
+                (
+                    DOMAIN,
+                    coordinator.config_entry.entry_id
+                    if coordinator.config_entry is not None
+                    else coordinator.api.serial,
+                )
+            },
+            manufacturer=MANUFACTURER,
             model=coordinator.api.description,
             hw_version=coordinator.api.warranty_number,
             sw_version=coordinator.api.firmware_version,
