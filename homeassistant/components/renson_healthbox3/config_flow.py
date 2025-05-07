@@ -1,4 +1,5 @@
 """Config flow for Renson integration."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -11,12 +12,11 @@ from pyhealthbox3.healthbox3 import (
 )
 import voluptuous as vol
 
-from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_API_KEY, CONF_HOST
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -26,14 +26,14 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class RensonConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Renson."""
 
     VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
         if user_input is None:
             return self.async_show_form(
@@ -41,7 +41,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         errors = {}
-
+        self._async_abort_entries_match({CONF_HOST: user_input[CONF_HOST]})
         try:
             api_key = None
 
@@ -63,9 +63,6 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         except Healthbox3ApiClientCommunicationError:
             errors["base"] = "connection"
         except Healthbox3ApiClientError:
-            errors["base"] = "unknown"
-        except Exception:  # pylint: disable=broad-except
-            LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
             return self.async_create_entry(title="Renson", data=user_input)
