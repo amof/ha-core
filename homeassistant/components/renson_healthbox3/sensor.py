@@ -1,9 +1,11 @@
 """Sensor data of the Renson ventilation unit."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -14,18 +16,25 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
     CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
+    REVOLUTIONS_PER_MINUTE,
+    UnitOfElectricPotential,
+    UnitOfPower,
+    UnitOfPressure,
     UnitOfTemperature,
+    UnitOfTime,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .const import DOMAIN
 from .coordinator import RensonCoordinator
-from .entity import RensonEntity
+from .entity import RensonHealthboxSensor
+
+_LOGGER: logging.Logger = logging.getLogger(__package__)
 
 
 class HealthboxRoomBoost:
@@ -104,21 +113,21 @@ class HealthboxRoom:
         return aqi
 
 
-@dataclass
+@dataclass(kw_only=True, frozen=True)
 class HealthboxGlobalEntityDescriptionMixin:
     """Mixin values for Healthbox Global entities."""
 
     value_fn: Callable[[Any], Any]
 
 
-@dataclass
+@dataclass(kw_only=True, frozen=True)
 class HealthboxGlobalSensorEntityDescription(
     SensorEntityDescription, HealthboxGlobalEntityDescriptionMixin
 ):
     """Class describing Healthbox Global sensor entities."""
 
 
-@dataclass
+@dataclass(kw_only=True, frozen=True)
 class HealthboxRoomEntityDescriptionMixin:
     """Mixin values for Healthbox Room entities."""
 
@@ -126,7 +135,7 @@ class HealthboxRoomEntityDescriptionMixin:
     value_fn: Callable[[Any], Any]
 
 
-@dataclass
+@dataclass(kw_only=True, frozen=True)
 class HealthboxRoomSensorEntityDescription(
     SensorEntityDescription, HealthboxRoomEntityDescriptionMixin
 ):
@@ -136,65 +145,152 @@ class HealthboxRoomSensorEntityDescription(
 async def async_setup_entry(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Renson sensor platform."""
-
     coordinator: RensonCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    sensors: list[RensonHealthboxSensor] = []
+    global_sensors = generate_global_sensors_for_healthbox(coordinator=coordinator)
 
-    entities: list[RensonEntity] = []
-
-    entities = [
-        HealthboxGlobalSensor(coordinator, description)
-        for description in HEALTHBOX_GLOBAL_SENSORS
-    ]
+    sensors.extend(
+        [
+            HealthboxGlobalSensor(coordinator, description)
+            for description in global_sensors
+        ]
+    )
 
     room_sensors = generate_room_sensors_for_healthbox(coordinator=coordinator)
 
-    for description in room_sensors:
-        entities.append(HealthboxRoomSensor(coordinator, description))
+    sensors.extend(
+        [HealthboxRoomSensor(coordinator, description) for description in room_sensors]
+    )
 
-    async_add_entities(entities)
+    async_add_entities(sensors)
 
 
-HEALTHBOX_GLOBAL_SENSORS: tuple[HealthboxGlobalSensorEntityDescription, ...] = (
-    HealthboxGlobalSensorEntityDescription(
-        key="global_aqi",
-        translation_key="global_aqi",
-        icon="mdi:leaf",
-        device_class=SensorDeviceClass.AQI,
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda x: x.global_aqi,
-        suggested_display_precision=2,
-    ),
-    HealthboxGlobalSensorEntityDescription(
-        key="error_count",
-        translation_key="error_count",
-        icon="mdi:alert-outline",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda x: x.error_count,
-        suggested_display_precision=0,
-    ),
-    HealthboxGlobalSensorEntityDescription(
-        key="wifi_status",
-        translation_key="wifi_status",
-        icon="mdi:wifi",
-        value_fn=lambda x: x.wifi.status,
-    ),
-    HealthboxGlobalSensorEntityDescription(
-        key="wifi_internet_connection",
-        translation_key="wifi_internet_connection",
-        icon="mdi:web",
-        state_class=SensorStateClass.MEASUREMENT,
-        value_fn=lambda x: x.wifi.internet_connection,
-    ),
-    HealthboxGlobalSensorEntityDescription(
-        key="wifi_ssid",
-        translation_key="wifi_ssid",
-        icon="mdi:wifi-settings",
-        value_fn=lambda x: x.wifi.ssid,
-    ),
-)
+def generate_global_sensors_for_healthbox(
+    coordinator: RensonCoordinator,
+) -> list[HealthboxGlobalSensorEntityDescription]:
+    """Generate global sensors."""
+    global_sensors: list[HealthboxGlobalSensorEntityDescription] = []
+    global_sensors.append(
+        HealthboxGlobalSensorEntityDescription(
+            key="global_aqi",
+            name="Global Air Quality Index",
+            native_unit_of_measurement=None,
+            icon="mdi:leaf",
+            device_class=SensorDeviceClass.AQI,
+            state_class=SensorStateClass.MEASUREMENT,
+            value_fn=lambda x: x.global_aqi,
+            suggested_display_precision=2,
+        )
+    )
+    global_sensors.append(
+        HealthboxGlobalSensorEntityDescription(
+            key="error_count",
+            name="Error Count",
+            native_unit_of_measurement=None,
+            icon="mdi:alert-outline",
+            state_class=SensorStateClass.MEASUREMENT,
+            value_fn=lambda x: x.error_count,
+            suggested_display_precision=0,
+        )
+    )
+    if coordinator.api.wifi.status:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="wifi_status",
+                name="WiFi Status",
+                icon="mdi:wifi",
+                value_fn=lambda x: x.wifi.status,
+            )
+        )
+    if coordinator.api.wifi.internet_connection is not None:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="wifi_internet_connection",
+                name="WiFi Internet Connection",
+                native_unit_of_measurement=None,
+                icon="mdi:web",
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda x: x.wifi.internet_connection,
+            )
+        )
+    if coordinator.api.wifi.ssid:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="wifi_ssid",
+                name="WiFi SSID",
+                icon="mdi:wifi-settings",
+                value_fn=lambda x: x.wifi.ssid,
+            )
+        )
+
+    if coordinator.api.fan.voltage is not None:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="fan_voltage",
+                name="Fan Voltage",
+                icon="mdi:sine-wave",
+                native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                device_class=SensorDeviceClass.VOLTAGE,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda x: x.fan.voltage,
+                suggested_display_precision=2,
+            )
+        )
+    if coordinator.api.fan.pressure is not None:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="fan_pressure",
+                name="Fan Pressure",
+                icon="mdi:arrow-collapse-vertical",
+                native_unit_of_measurement=UnitOfPressure.PA,
+                device_class=SensorDeviceClass.PRESSURE,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda x: x.fan.pressure,
+                suggested_display_precision=2,
+            )
+        )
+    if coordinator.api.fan.flow is not None:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="fan_flow",
+                name="Fan Flow",
+                icon="mdi:wind-power",
+                native_unit_of_measurement=UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
+                device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda x: x.fan.flow,
+                suggested_display_precision=2,
+            )
+        )
+    if coordinator.api.fan.power is not None:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="fan_power",
+                name="Fan Power",
+                icon="mdi:flash",
+                native_unit_of_measurement=UnitOfPower.WATT,
+                device_class=SensorDeviceClass.POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda x: x.fan.power,
+                suggested_display_precision=2,
+            )
+        )
+    if coordinator.api.fan.rpm is not None:
+        global_sensors.append(
+            HealthboxGlobalSensorEntityDescription(
+                key="fan_rpm",
+                name="Fan RPM",
+                icon="mdi:fan",
+                native_unit_of_measurement=REVOLUTIONS_PER_MINUTE,
+                state_class=SensorStateClass.MEASUREMENT,
+                value_fn=lambda x: x.fan.rpm,
+            )
+        )
+
+    return global_sensors
 
 
 def generate_room_sensors_for_healthbox(
@@ -253,6 +349,7 @@ def generate_room_sensors_for_healthbox(
                         HealthboxRoomSensorEntityDescription(
                             key=f"{room.room_id}_aqi",
                             name=f"{room.name} Air Quality Index",
+                            native_unit_of_measurement=None,
                             icon="mdi:leaf",
                             device_class=SensorDeviceClass.AQI,
                             state_class=SensorStateClass.MEASUREMENT,
@@ -262,17 +359,17 @@ def generate_room_sensors_for_healthbox(
                         ),
                     )
             if "indoor volatile organic compounds" in room.enabled_sensors:
-                if room.indoor_voc_microg_per_cubic is not None:
+                if room.indoor_voc_ppm is not None:
                     room_sensors.append(
                         HealthboxRoomSensorEntityDescription(
                             key=f"{room.room_id}_voc",
                             name=f"{room.name} Volatile Organic Compounds",
-                            native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                            native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
                             icon="mdi:leaf",
-                            device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS,
+                            device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
                             state_class=SensorStateClass.MEASUREMENT,
                             room=room,
-                            value_fn=lambda x: x.indoor_voc_microg_per_cubic,
+                            value_fn=lambda x: x.indoor_voc_ppm,
                             suggested_display_precision=2,
                         ),
                     )
@@ -285,10 +382,22 @@ def generate_room_sensors_for_healthbox(
                     name=f"{room.name} Boost Level",
                     native_unit_of_measurement=PERCENTAGE,
                     icon="mdi:fan",
+                    # device_class=SensorDeviceClass.,
                     state_class=SensorStateClass.MEASUREMENT,
                     room=room,
                     value_fn=lambda x: x.boost.level,
                     suggested_display_precision=2,
+                ),
+            )
+            room_sensors.append(
+                HealthboxRoomSensorEntityDescription(
+                    key=f"{room.room_id}_boost_remaining",
+                    name=f"{room.name} Boost Remaining",
+                    native_unit_of_measurement=UnitOfTime.SECONDS,
+                    icon="mdi:clock-time-five-outline",
+                    state_class=SensorStateClass.MEASUREMENT,
+                    room=room,
+                    value_fn=lambda x: x.boost.remaining,
                 ),
             )
         if room.airflow_ventilation_rate is not None:
@@ -298,6 +407,7 @@ def generate_room_sensors_for_healthbox(
                     name=f"{room.name} Airflow Ventilation Rate",
                     native_unit_of_measurement=PERCENTAGE,
                     icon="mdi:fan",
+                    # device_class=SensorDeviceClass.,
                     state_class=SensorStateClass.MEASUREMENT,
                     room=room,
                     value_fn=lambda x: x.airflow_ventilation_rate * 100,
@@ -317,7 +427,7 @@ def generate_room_sensors_for_healthbox(
     return room_sensors
 
 
-class HealthboxGlobalSensor(RensonEntity, SensorEntity):
+class HealthboxGlobalSensor(RensonHealthboxSensor, SensorEntity):
     """Representation of a Healthbox  Room Sensor."""
 
     _attr_has_entity_name = True
@@ -343,7 +453,7 @@ class HealthboxGlobalSensor(RensonEntity, SensorEntity):
         self.async_write_ha_state()
 
 
-class HealthboxRoomSensor(RensonEntity, SensorEntity):
+class HealthboxRoomSensor(RensonHealthboxSensor, SensorEntity):
     """Representation of a Healthbox Room Sensor."""
 
     entity_description: HealthboxRoomSensorEntityDescription
