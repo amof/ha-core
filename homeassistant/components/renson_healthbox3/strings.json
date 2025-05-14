@@ -2,10 +2,27 @@
   "config": {
     "step": {
       "user": {
+        "title": "Renson HealthBox 3",
+        "description": "Connect your Renson Healthbox 3 with Home Assistant.",
         "data": {
           "host": "[%key:common::config_flow::data::host%]",
-          "api_key": "[%key:common::config_flow::data::api_key%]",
-          "device_type": "Renson device"
+          "api_key": "[%key:common::config_flow::data::api_key%]"
+        },
+        "data_description": {
+          "host": "The Host or IP address of the Renson Healthbox 3",
+          "api_key": "The API key for the Renson Healthbox 3"
+        }
+      },
+      "reconfigure": {
+        "title": "Renson HealthBox 3 Configuration",
+        "description": "Update your host or API key.",
+        "data": {
+          "host": "[%key:common::config_flow::data::host%]",
+          "api_key": "[%key:common::config_flow::data::api_key%]"
+        },
+        "data_description": {
+          "host": "[%key:component::renson_healthbox3::config::step::user::data_description::host%]",
+          "api_key": "[%key:component::renson_healthbox3::config::step::user::data_description::api_key%]"
         }
       }
     },
@@ -31,6 +48,21 @@
       },
       "wifi_ssid": {
         "name": "Wi-Fi SSID"
+      },
+      "fan_voltage": {
+        "name": "Fan Voltage"
+      },
+      "fan_pressure": {
+        "name": "Fan Pressure"
+      },
+      "fan_flow": {
+        "name": "Fan Flow"
+      },
+      "fan_power": {
+        "name": "Fan Power"
+      },
+      "fan_rpm": {
+        "name": "Fan RPM"
       }
     }
   }
