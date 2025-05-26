@@ -65,5 +65,19 @@
         "name": "Fan RPM"
       }
     }
+  },
+  "exceptions": {
+    "authentication_error": {
+      "message": "An error occurred while authenticating with the Renson Healthbox device: {error}"
+    },
+    "communication_error": {
+      "message": "An error occurred while communicating with the Renson Healthbox device: {error}"
+    },
+    "unknown_error": {
+      "message": "An unknown error occurred while communicating with the Renson Healthbox device: {error}"
+    },
+    "update_error": {
+      "message": "An error occurred while communicating with the Renson Healthbox device: {error}"
+    }
   }
 }
