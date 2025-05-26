@@ -1,35 +1,70 @@
 """Entity class for Renson ventilation unit."""
 
-from __future__ import annotations
+from collections.abc import Callable, Coroutine
+from typing import Any, Concatenate
 
+from pyhealthbox3.healthbox3 import (
+    Healthbox3ApiClientAuthenticationError,
+    Healthbox3ApiClientCommunicationError,
+    Healthbox3ApiClientError,
+)
+
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER
-from .coordinator import RensonCoordinator
+from .coordinator import RensonHealthboxCoordinator
 
 
-class RensonHealthboxSensor(CoordinatorEntity[RensonCoordinator]):
-    """Base class for a Renson Healthbox sensor."""
+class RensonHealthboxEntity(CoordinatorEntity[RensonHealthboxCoordinator]):
+    """Defines a base Renson Healthbox entity."""
 
-    def __init__(self, name: str, coordinator: RensonCoordinator) -> None:
-        """Initialize the sensor."""
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator: RensonHealthboxCoordinator) -> None:
+        """Initialize Renson Healthbox entity."""
         super().__init__(coordinator)
-
+        healthbox_data = coordinator.data.healthbox_data
         self._attr_device_info = DeviceInfo(
-            name=f"{coordinator.api.serial}",
-            identifiers={
-                (
-                    DOMAIN,
-                    coordinator.config_entry.entry_id
-                    if coordinator.config_entry is not None
-                    else coordinator.api.serial,
-                )
-            },
+            identifiers={(DOMAIN, coordinator.serial_number)},
             manufacturer=MANUFACTURER,
-            model=coordinator.api.description,
-            hw_version=coordinator.api.warranty_number,
-            sw_version=coordinator.api.firmware_version,
+            model=healthbox_data.description,
+            model_id=healthbox_data.description,
+            serial_number=coordinator.serial_number,
+            sw_version=healthbox_data.firmware_version,
         )
-        self._attr_unique_id = coordinator.api.serial + name
-        self.api = coordinator.api
+
+
+def exception_handler[_EntityT: RensonHealthboxEntity, **_P](
+    func: Callable[Concatenate[_EntityT, _P], Coroutine[Any, Any, Any]],
+) -> Callable[Concatenate[_EntityT, _P], Coroutine[Any, Any, None]]:
+    """Decorate Renson Healthbox calls to handle exceptions.
+
+    A decorator that wraps the passed in function, catches Renson Healthbox errors.
+    """
+
+    async def handler(self: _EntityT, *args: _P.args, **kwargs: _P.kwargs) -> None:
+        try:
+            await func(self, *args, **kwargs)
+        except Healthbox3ApiClientAuthenticationError as error:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="authentication_error",
+                translation_placeholders={"error": str(error)},
+            ) from error
+        except Healthbox3ApiClientCommunicationError as error:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="communication_error",
+                translation_placeholders={"error": str(error)},
+            ) from error
+
+        except Healthbox3ApiClientError as error:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_error",
+                translation_placeholders={"error": str(error)},
+            ) from error
+
+    return handler

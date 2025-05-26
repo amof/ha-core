@@ -49,7 +49,6 @@ class RensonConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Renson Healthbox."""
 
     VERSION = 1
-    MINOR_VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -109,6 +108,7 @@ class RensonConfigFlow(ConfigFlow, domain=DOMAIN):
             if CONF_API_KEY in user_input:
                 await client.async_enable_advanced_api_features()
             await client.async_validate_connectivity()
+            await client.async_get_data()
         except Healthbox3ApiClientAuthenticationError:
             errors["base"] = "auth"
         except Healthbox3ApiClientCommunicationError:
@@ -119,5 +119,5 @@ class RensonConfigFlow(ConfigFlow, domain=DOMAIN):
             _LOGGER.exception("Unexpected exception")
             errors["base"] = "unknown"
         else:
-            await self.async_set_unique_id(client.host)
+            await self.async_set_unique_id(client.serial)
         return errors
