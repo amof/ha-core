@@ -3,7 +3,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from pyhealthbox3.models import Healthbox3DataObject
+from pyhealthbox3.models import Healthbox3DataObject, Healthbox3Room
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -12,10 +12,13 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    CONCENTRATION_PARTS_PER_MILLION,
+    PERCENTAGE,
     REVOLUTIONS_PER_MINUTE,
     UnitOfElectricPotential,
     UnitOfPower,
     UnitOfPressure,
+    UnitOfTemperature,
     UnitOfVolumeFlowRate,
 )
 from homeassistant.core import HomeAssistant, callback
@@ -24,16 +27,24 @@ from homeassistant.helpers.typing import StateType
 
 from . import RensonHealthboxConfigEntry
 from .coordinator import RensonHealthboxCoordinator
-from .entity import RensonHealthboxEntity
+from .entity import RensonHealthboxEntity, RensonHealthboxRoomEntity
 
 PARALLEL_UPDATES = 0
 
 
 @dataclass(frozen=True, kw_only=True)
 class RensonHealthboxGlobalSensorEntityDescription(SensorEntityDescription):
-    """Describes AirGradient measurement sensor entity."""
+    """Describes Renson Healthbox Global sensor entity."""
 
     value_fn: Callable[[Healthbox3DataObject], StateType]
+
+
+@dataclass(frozen=True, kw_only=True)
+class RensonHealthboxRoomSensorEntityDescription(SensorEntityDescription):
+    """Describes Renson Healthbox room sensor entity."""
+
+    renson_sensor_name: str
+    value_fn: Callable[[Healthbox3Room], StateType]
 
 
 RENSON_GLOBAL_SENSOR_TYPES: tuple[RensonHealthboxGlobalSensorEntityDescription, ...] = (
@@ -126,6 +137,64 @@ RENSON_GLOBAL_SENSOR_TYPES: tuple[RensonHealthboxGlobalSensorEntityDescription, 
     ),
 )
 
+RENSON_ROOM_SENSOR_TYPES: tuple[RensonHealthboxRoomSensorEntityDescription, ...] = (
+    RensonHealthboxRoomSensorEntityDescription(
+        key="room_temperature",
+        translation_key="room_temperature",
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        icon="mdi:thermometer",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda x: x.indoor_temperature,
+        suggested_display_precision=2,
+        renson_sensor_name="indoor temperature",
+    ),
+    RensonHealthboxRoomSensorEntityDescription(
+        key="room_humidity",
+        translation_key="room_humidity",
+        native_unit_of_measurement=PERCENTAGE,
+        icon="mdi:water-percent",
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda x: x.indoor_humidity,
+        suggested_display_precision=2,
+        renson_sensor_name="indoor relative humidity",
+    ),
+    RensonHealthboxRoomSensorEntityDescription(
+        key="room_co2",
+        translation_key="room_co2",
+        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        icon="mdi:molecule-co2",
+        device_class=SensorDeviceClass.CO2,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda x: x.indoor_co2_concentration,
+        suggested_display_precision=2,
+        renson_sensor_name="indoor CO2",
+    ),
+    RensonHealthboxRoomSensorEntityDescription(
+        key="room_aqi",
+        translation_key="room_aqi",
+        native_unit_of_measurement=None,
+        icon="mdi:leaf",
+        device_class=SensorDeviceClass.AQI,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda x: x.indoor_aqi,
+        suggested_display_precision=2,
+        renson_sensor_name="indoor air quality index",
+    ),
+    RensonHealthboxRoomSensorEntityDescription(
+        key="room_voc",
+        translation_key="room_voc",
+        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        icon="mdi:leaf",
+        device_class=SensorDeviceClass.VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda x: x.indoor_voc_ppm,
+        suggested_display_precision=2,
+        renson_sensor_name="indoor volatile organic compounds",
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -164,27 +233,60 @@ async def async_setup_entry(
 
     add_entities()
 
+    entities: list[RensonHealthboxRoomSensor] = []
+    for room in coordinator.data.healthbox_data.rooms:
+        entities.extend(
+            RensonHealthboxRoomSensor(coordinator, room_sensor, room)
+            for room_sensor in RENSON_ROOM_SENSOR_TYPES
+            if room_sensor.renson_sensor_name in room.enabled_sensors
+        )
 
-class RensonHealthboxSensor(RensonHealthboxEntity, SensorEntity):
-    """Defines an Renson Healthbox sensor."""
+    async_add_entities(entities)
+
+
+class RensonHealthboxGlobalSensor(RensonHealthboxEntity, SensorEntity):
+    """Defines an Renson Healthbox global sensor."""
+
+    entity_description: RensonHealthboxGlobalSensorEntityDescription
 
     def __init__(
         self,
         coordinator: RensonHealthboxCoordinator,
-        description: SensorEntityDescription,
+        description: RensonHealthboxGlobalSensorEntityDescription,
     ) -> None:
-        """Initialize airgradient sensor."""
+        """Initialize Renson Healthbox global sensor."""
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{coordinator.serial_number}-{description.key}"
-
-
-class RensonHealthboxGlobalSensor(RensonHealthboxSensor):
-    """Defines an Renson Healthbox sensor."""
-
-    entity_description: RensonHealthboxGlobalSensorEntityDescription
 
     @property
     def native_value(self) -> StateType:
         """Return the state of the sensor."""
         return self.entity_description.value_fn(self.coordinator.data.healthbox_data)
+
+
+class RensonHealthboxRoomSensor(RensonHealthboxRoomEntity, SensorEntity):
+    """Defines an Renson Healthbox room sensor."""
+
+    entity_description: RensonHealthboxRoomSensorEntityDescription
+
+    def __init__(
+        self,
+        coordinator: RensonHealthboxCoordinator,
+        description: RensonHealthboxRoomSensorEntityDescription,
+        room: Healthbox3Room,
+    ) -> None:
+        """Initialize Renson Healthbox room sensor."""
+        self.room_index = int(room.room_id) - 1  # Room_id starts at '1'
+        super().__init__(coordinator, room.name, room.room_type, self.room_index)
+        self.entity_description = description
+        self._attr_unique_id = (
+            f"{coordinator.serial_number}-{room.name}-{description.key}"
+        )
+
+    @property
+    def native_value(self) -> StateType:
+        """Return the state of the sensor."""
+        return self.entity_description.value_fn(
+            self.coordinator.data.healthbox_data.rooms[self.room_index]
+        )
