@@ -36,7 +36,33 @@ class RensonHealthboxEntity(CoordinatorEntity[RensonHealthboxCoordinator]):
         )
 
 
-def exception_handler[_EntityT: RensonHealthboxEntity, **_P](
+class RensonHealthboxRoomEntity(CoordinatorEntity[RensonHealthboxCoordinator]):
+    """Defines a base Renson Healthbox entity."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: RensonHealthboxCoordinator,
+        room_name: str,
+        room_type: str,
+        room_id: int,
+    ) -> None:
+        """Initialize Renson Healthbox entity."""
+        super().__init__(coordinator)
+        healthbox_data = coordinator.data.healthbox_data
+        self._attr_device_info = DeviceInfo(
+            name=f"Zone {room_name}",
+            identifiers={(DOMAIN, f"{DOMAIN}_ROOM_{room_id}")},
+            manufacturer=MANUFACTURER,
+            model=f"{healthbox_data.description} - {room_type} Module",
+        )
+
+
+def exception_handler[
+    _EntityT: RensonHealthboxEntity | RensonHealthboxRoomEntity,
+    **_P,
+](
     func: Callable[Concatenate[_EntityT, _P], Coroutine[Any, Any, Any]],
 ) -> Callable[Concatenate[_EntityT, _P], Coroutine[Any, Any, None]]:
     """Decorate Renson Healthbox calls to handle exceptions.
