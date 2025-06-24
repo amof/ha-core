@@ -63,6 +63,21 @@
       },
       "fan_rpm": {
         "name": "Fan RPM"
+      },
+      "room_temperature": {
+        "name": "Room Temperature"
+      },
+      "room_humidity": {
+        "name": "Room Humidity"
+      },
+      "room_co2": {
+        "name": "Room CO2 Concentration"
+      },
+      "room_aqi": {
+        "name": "Room Air Quality Index"
+      },
+      "room_voc": {
+        "name": "Room Volatile Organic Compounds"
       }
     }
   },
