@@ -248,6 +248,7 @@ class RensonHealthboxGlobalSensor(RensonHealthboxEntity, SensorEntity):
     """Defines an Renson Healthbox global sensor."""
 
     entity_description: RensonHealthboxGlobalSensorEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -269,6 +270,7 @@ class RensonHealthboxRoomSensor(RensonHealthboxRoomEntity, SensorEntity):
     """Defines an Renson Healthbox room sensor."""
 
     entity_description: RensonHealthboxRoomSensorEntityDescription
+    _attr_has_entity_name = True
 
     def __init__(
         self,
