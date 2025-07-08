@@ -56,7 +56,7 @@ class RensonHealthboxCoordinator(DataUpdateCoordinator[RensonHealthboxData]):
 
     async def _async_update_data(self) -> RensonHealthboxData:
         try:
-            data = await self.client.async_get_data()
+            await self.client.async_get_data()
         except Exception as error:
             raise UpdateFailed(
                 translation_domain=DOMAIN,
@@ -74,4 +74,4 @@ class RensonHealthboxCoordinator(DataUpdateCoordinator[RensonHealthboxData]):
                 sw_version=self.client.firmware_version,
             )
             self._current_version = self.client.firmware_version
-        return RensonHealthboxData(data)
+        return RensonHealthboxData(self.client)
